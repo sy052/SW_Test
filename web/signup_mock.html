@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>회원가입</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+    .field { margin-bottom: 12px; }
+    label { display:block; margin-bottom: 6px; font-weight: 600; }
+    input[type="text"], input[type="email"], input[type="password"] {
+      width: 320px; padding: 8px; border: 1px solid #ccc; border-radius: 6px;
+    }
+    .error { color: #c62828; font-size: 14px; margin-top: 4px; }
+    #flash { margin-top: 16px; padding: 10px 12px; border-radius: 6px; display:none; }
+    #flash.success { background: #e8f5e9; color: #2e7d32; display:block; }
+    #flash.fail { background: #ffebee; color: #c62828; display:block; }
+    button { padding: 10px 16px; border: 0; border-radius: 8px; cursor: pointer; }
+    button[type="submit"] { background:#1976d2; color:#fff; }
+  </style>
+</head>
+<body>
+  <h1>회원가입</h1>
+
+  <form id="signupForm" data-testid="form">
+    <div class="field">
+      <label for="email">이메일</label>
+      <input id="email" name="email" type="text" placeholder="you@example.com" data-testid="email"/>
+      <div class="error" id="error-email" data-testid="error-email"></div>
+    </div>
+
+    <div class="field">
+      <label for="username">사용자명</label>
+      <input id="username" name="username" type="text" placeholder="홍길동" data-testid="username"/>
+      <div class="error" id="error-username" data-testid="error-username"></div>
+    </div>
+
+    <div class="field">
+      <label for="password">비밀번호</label>
+      <input id="password" name="password" type="password" placeholder="최소 8자, 숫자 포함" data-testid="password"/>
+      <div class="error" id="error-password" data-testid="error-password"></div>
+    </div>
+
+    <div class="field">
+      <label for="confirm">비밀번호 확인</label>
+      <input id="confirm" name="confirm" type="password" placeholder="비밀번호 재입력" data-testid="confirm"/>
+      <div class="error" id="error-confirm" data-testid="error-confirm"></div>
+    </div>
+
+    <div class="field">
+      <label>
+        <input id="terms" name="terms" type="checkbox" data-testid="terms"/>
+        이용약관에 동의합니다.
+      </label>
+      <div class="error" id="error-terms" data-testid="error-terms"></div>
+    </div>
+
+    <button type="submit" data-testid="submit">가입하기</button>
+  </form>
+
+  <div id="flash" role="alert" data-testid="flash"></div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+
+    function showError(id, msg) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = msg || "";
+    }
+
+    function clearErrors() {
+      ["error-email","error-username","error-password","error-confirm","error-terms"]
+        .forEach(id => showError(id, ""));
+    }
+
+    function setFlash(type, msg) {
+      const flash = $("#flash");
+      flash.className = type === "success" ? "success" : "fail";
+      flash.textContent = msg;
+      flash.style.display = "block";
+    }
+
+    function validateEmail(v) {
+      // 아주 간단한 패턴(실무에선 더 엄격한 검증 로직 사용 권장)
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    }
+
+    function validatePassword(v) {
+      // 최소 8자 & 숫자 1개 이상
+      return v.length >= 8 && /\d/.test(v);
+    }
+
+    $("#signupForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearErrors();
+      $("#flash").style.display = "none";
+
+      const email = $("#email").value.trim();
+      const username = $("#username").value.trim();
+      const password = $("#password").value;
+      const confirm = $("#confirm").value;
+      const terms = $("#terms").checked;
+
+      let ok = true;
+
+      if (!email) { showError("error-email", "이메일을 입력하세요."); ok = false; }
+      else if (!validateEmail(email)) { showError("error-email", "이메일 형식이 올바르지 않습니다."); ok = false; }
+
+      if (!username) { showError("error-username", "사용자명을 입력하세요."); ok = false; }
+
+      if (!password) { showError("error-password", "비밀번호를 입력하세요."); ok = false; }
+      else if (!validatePassword(password)) { showError("error-password", "비밀번호는 8자 이상, 숫자를 포함해야 합니다."); ok = false; }
+
+      if (!confirm) { showError("error-confirm", "비밀번호 확인을 입력하세요."); ok = false; }
+      else if (password !== confirm) { showError("error-confirm", "비밀번호가 일치하지 않습니다."); ok = false; }
+
+      if (!terms) { showError("error-terms", "이용약관에 동의해야 합니다."); ok = false; }
+
+      if (ok) {
+        // ✅ 실제 서비스라면 서버로 전송되는 위치
+        // Playwright에서 /api/signup을 목킹하면 여기 응답으로 플래시에 메시지가 표시됩니다.
+        fetch("http://localhost:8000/api/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, username, password })
+        })
+          .then(async (res) => {
+            // 200이 아니더라도 서버가 JSON을 줄 수 있으니 방어적으로 처리
+            let data = {};
+            try { data = await res.json(); } catch (_) { /* ignore */ }
+            if (res.ok) {
+              setFlash("success", data.message || "가입이 완료되었습니다!!");
+            } else {
+              setFlash("fail", (data && data.message) || "서버 오류 발생!!");
+            }
+          })
+          .catch(() => setFlash("fail", "서버 오류 발생!!"));
+      } else {
+        setFlash("fail", "입력값을 다시 확인해주세요.");
+      }
+    });
+  </script>
+</body>
+</html>
